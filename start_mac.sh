@@ -36,9 +36,9 @@ check_and_install() {
 
 # --- Prerequisite Tools ---
 echo "🔍 Checking prerequisites..."
+check_and_install brew "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"" "Homebrew"
 check_and_install docker "brew install --cask docker" "Docker Desktop"
 check_and_install docker-compose "brew install docker-compose" "Docker Compose"
-check_and_install brew "/bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"" "Homebrew"
 check_and_install mkcert "brew install mkcert" "mkcert"
 check_and_install zsh "brew install zsh" "zsh"
 
@@ -82,7 +82,9 @@ for plugin in zsh-autosuggestions zsh-syntax-highlighting; do
   [ ! -d "$PLUGIN_DIR" ] && git clone https://github.com/zsh-users/$plugin "$PLUGIN_DIR"
 done
 
-grep -q "zsh-autosuggestions" "$ZSHRC_FILE" || sed -i '' '/^plugins=/ s/)/ zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC_FILE"
+if ! grep -q "zsh-autosuggestions" "$ZSHRC_FILE"; then
+  sed -i '' '/^plugins=(/ s/)/ zsh-autosuggestions zsh-syntax-highlighting)/' "$ZSHRC_FILE" || echo "📝 Please manually add plugins to $ZSHRC_FILE"
+fi
 
 # --- Aliases and Functions ---
 sed -i '' '/# === START ===/,/# === END ===/d' "$ZSHRC_FILE"
@@ -163,7 +165,7 @@ dcp() {
 }
 unalias dcd 2>/dev/null
 dcd() {
-  PROJECT=$(docker ps --format "{{.Names}}" | grep php | cut -d"" -f1)
+  PROJECT=$(docker ps --format "{{.Names}}" | grep php | cut -d'_' -f1)
   if [ -n "$PROJECT" ]; then
     echo "🔻 Stopping containers for $PROJECT..."
     docker compose -p "$PROJECT" down
@@ -291,9 +293,8 @@ if [[ "$run_now" =~ ^[Yy]$ ]]; then
   # --- Wait for Health ---
   echo "⏳ Waiting for containers to be healthy..."
   wait_for_health() {
-    # Dynamically determine the project name from a running container.
-    # This assumes container names follow the pattern <project_name>_<service_name>
-    local project_name=$(docker ps --format "{{.Names}}" --filter "label=com.docker.compose.project" | head -n 1 | cut -d'_' -f1)
+    # Use the project name we already know
+    local project_name="${PROJECT_NAME}"
 
     if [ -z "$project_name" ]; then
       echo "❌ Could not determine project name for health check. Ensure containers are starting."
@@ -353,6 +354,7 @@ if [ ! -f "$SCRIPT_DIR/.github-token" ]; then
   read -s -p "🔑 Enter your GitHub token: " GITHUB_TOKEN
   echo
   echo "$GITHUB_TOKEN" > "$SCRIPT_DIR/.github-token"
+  chmod 600 "$SCRIPT_DIR/.github-token"
 else
   GITHUB_TOKEN=$(<"$SCRIPT_DIR/.github-token")
 fi
@@ -404,4 +406,9 @@ fi
 
 # === Launch VS Code ===
 echo "🧠 Opening in VS Code..."
-code .
+if command -v code &>/dev/null; then
+  code "$ROOT_DIR"
+else
+  echo "⚠️ VS Code command not found. Please install it or run 'Shell Command: Install code command in PATH' from VS Code."
+  echo "📁 Project created at: $ROOT_DIR"
+fi
