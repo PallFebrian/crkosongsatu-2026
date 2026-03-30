@@ -399,8 +399,14 @@ if [ -n "$GITHUB_SSH" ]; then
   git remote remove origin 2>/dev/null || true
   git remote add origin "$GITHUB_SSH"
   git add .
-  git commit -m "🔥 fresh from the oven"
+  git commit -m "🔥 fresh from the oven" 2>/dev/null || echo "ℹ️ No changes to commit."
   git branch -M main
+  
+  # Pull first to handle existing remote content
+  if git fetch origin main 2>/dev/null; then
+    git pull origin main --allow-unrelated-histories --no-edit || true
+  fi
+  
   git push -u origin main && echo "✅ Project pushed to GitHub." || echo "⚠ Failed to push."
 fi
 
